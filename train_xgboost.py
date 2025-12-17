@@ -99,3 +99,71 @@ print(f"평균 대비 오차율(CV): {cv * 100:.1f}%")
 
 r2 = r2_score(y_test, preds)
 print(f"R2 Score: {r2:.4f}")
+
+## 5. 시각화 (Visualization)
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 그래프 스타
+sns.set_theme(style="whitegrid")
+
+# (1) 실제값 vs 예측값 산점도
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x=y_test, y=preds, alpha=0.6, color='blue', edgecolor='w')
+
+# 정답 기준선 (빨간 점선)
+max_val = max(y_test.max(), preds.max())
+plt.plot([0, max_val], [0, max_val], 'r--', lw=2, label='Perfect Fit')
+
+plt.xlabel('Actual MMR') # 실제값
+plt.ylabel('Predicted MMR') # 예측값
+plt.title(f'Prediction Result (R2 Score: {r2:.4f})')
+plt.legend()
+plt.show()
+
+# (2) 변수 중요도 (Feature Importance)
+model = pipeline.named_steps['model']
+preprocessor = pipeline.named_steps['preprocess']
+feature_names = preprocessor.get_feature_names_out()
+
+# 1단계: 원래 중요도 데이터프레임 만들기
+raw_importance_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': model.feature_importances_
+})
+
+# 2단계: 'Continent' 관련 변수들만 찾아서 합치기
+continent_score = raw_importance_df[
+    raw_importance_df['Feature'].str.contains('Continent')
+]['Importance'].sum()
+
+# 3단계: 나머지 변수들만 남기기
+clean_df = raw_importance_df[
+    ~raw_importance_df['Feature'].str.contains('Continent')
+].copy()
+
+# 4단계: 합친 Continent 점수 추가하기
+new_row = pd.DataFrame({'Feature': ['Continent (Combined)'], 'Importance': [continent_score]})
+clean_df = pd.concat([clean_df, new_row], ignore_index=True)
+
+# "num__" 같은 접두사 제거
+clean_df['Feature'] = clean_df['Feature'].str.replace('num__', '').str.replace('cat__', '')
+
+# 상위 10개 추출
+top_10_features = clean_df.sort_values(by='Importance', ascending=False).head(10)
+
+# 막대 그래프 그리기
+plt.figure(figsize=(10, 6))
+sns.barplot(
+    x='Importance', 
+    y='Feature', 
+    data=top_10_features, 
+    palette='viridis', 
+    hue='Feature',  
+    legend=False    
+)
+plt.title('Top 10 Feature Importance') # 변수 중요도
+plt.xlabel('Importance Score')
+plt.ylabel('Features')
+plt.tight_layout()
+plt.show()
